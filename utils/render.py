@@ -2,6 +2,7 @@ import open3d as o3d
 import numpy as np 
 import os
 import random
+import copy
 
 def render_with_object_rotation(point_cloud_data, visualizer, **kwargs):
     """Rotate the point cloud and render.
@@ -16,9 +17,10 @@ def render_with_object_rotation(point_cloud_data, visualizer, **kwargs):
         save_dir (str, optional): The save directory for rendered images. Defaults to None.
     """    
 
-    assert point_cloud_data and visualizer
-    steps = kwargs.get('steps', (-1, -1, -1)) 
+    assert point_cloud_data is not None 
+    assert visualizer is not None
     assert min(steps) > -2
+    steps = kwargs.get('steps', (-1, -1, -1)) 
     iters = kwargs.get('iters', 1) 
     save_dir = kwargs.get('save_dir', None) 
     if save_dir and not os.path.exists(save_dir):
@@ -95,7 +97,8 @@ def downsample_voxel(point_cloud_data, **kwargs):
     Returns:
         o3d.open3d.geometry.PointCloud: Downsampled voxel
     """    
-    assert point_cloud_data
+
+    assert point_cloud_data is not None
     voxel_size = kwargs.get('voxel_size', 0.05)
     estimate_norm = kwargs.get('estimate_norm', False)
     
@@ -125,7 +128,9 @@ def draw_camera(visualizer, width, height, **kwargs):
         color (list): Color of the image plane and pyramid lines. Defaults to [0.8, 0.2, 0.8].
     """    
 
-    assert visualizer and width and height
+    assert visualizer is not None 
+    assert width > 0 
+    assert height > 0
     scale = kwargs.get('scale', 1)
     color = kwargs.get('color', [0.8, 0.2, 0.8])
 
@@ -138,31 +143,35 @@ def draw_camera(visualizer, width, height, **kwargs):
     trans_mat = extrinsic[0:3, 3]
 
     geometries = _draw_camera_geometries(intrinsic.intrinsic_matrix, rotate_mat, trans_mat, 
-                                         width, height, scale, color)
+                                         width, height, scale=scale, color=color)
     for g in geometries:
         visualizer.add_geometry(g)
 
-def get_camera_params(visualizer, copy=False):
+def get_camera_params(visualizer, shallow_copy=False):
     """Get intrinsic and extrinsic parameters of render camera.
 
     Args:
         visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
-        copy (bool, optional): Perform shallow copy operation or not. Defaults to False.
+        shallow_copy (bool, optional): Perform shallow copy operation or not. Defaults to False.
 
     Returns:
         open3d.camera.PinholeCameraIntrinsic: The intrinsic parameters.
         ndarray: The extrinsic parameters.
     """    
 
-    assert visualizer
+    assert visualizer is not None
     ctr = visualizer.get_view_control()
     params = ctr.convert_to_pinhole_camera_parameters()
     intrinsic = params.intrinsic
     extrinsic = params.extrinsic
-    return intrinsic.copy(), extrinsic.copy() if copy else intrinsic, extrinsic
+
+    return (copy.copy(intrinsic), extrinsic.copy()) if shallow_copy else (intrinsic, extrinsic)
 
 def save_view_point(point_cloud_data, visualizer, save_path):
-    assert point_cloud_data and visualizer and save_path
+    assert point_cloud_data is not None
+    assert visualizer is not None 
+    assert save_path is not None
+
     params = visualizer.get_view_control().convert_to_pinhole_camera_parameters()
     o3d.io.write_pinhole_camera_parameters(save_path, params)
 
@@ -186,7 +195,12 @@ def _draw_camera_geometries(intrinsic_mat, rotate_mat, trans_mat, width, height,
 
     """
 
-    assert intrinsic_mat and rotate_mat and trans_mat and width and height
+    assert intrinsic_mat is not None
+    assert rotate_mat is not None
+    assert trans_mat is not None
+    assert width 
+    assert height
+
     scale = kwargs.get('scale', 1)
     color = kwargs.get('color', [0.8, 0.2, 0.8])
 
@@ -202,7 +216,7 @@ def _draw_camera_geometries(intrinsic_mat, rotate_mat, trans_mat, width, height,
     extrinsic = np.vstack((extrinsic, (0, 0, 0, 1)))
 
     # Generate the axis
-    axis = _create_coordinate_frame(trans_mat, scale=scale*0.5)
+    axis = _create_coordinate_frame(extrinsic, scale=scale*0.5)
 
     # points in pixel
     points_pixel = [[    0,      0, 0],
@@ -219,7 +233,7 @@ def _draw_camera_geometries(intrinsic_mat, rotate_mat, trans_mat, width, height,
     plane_height = abs(points[1][1]) + abs(points[3][1])
     plane = o3d.geometry.TriangleMesh.create_box(plane_width, plane_height, depth=1e-6)
     plane.paint_uniform_color(color)
-    plane.transform(trans_mat)
+    plane.transform(extrinsic)
     plane.translate(rotate_mat @ [points[1][0], points[1][1], scale])
 
     # pyramid
@@ -254,7 +268,8 @@ def draw_points3D(points, **kwargs):
     Returns:
         list: the geometries of 3D points.
     """    
-    assert points
+    
+    assert points is not None
     color = kwargs.get('color', [0.8, 0.2, 0.8])
     radius = kwargs.get('radius', 0.01)
     resolution = kwargs.get('resolution', 20)
