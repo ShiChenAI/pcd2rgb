@@ -3,6 +3,7 @@ import numpy as np
 import os
 import random
 import copy
+from scipy.spatial.transform import Rotation as R # scipy >= 1.4.0
 
 def render_with_object_rotation(point_cloud_data, visualizer, **kwargs):
     """Rotate the point cloud and render.
@@ -122,10 +123,10 @@ def draw_camera(visualizer, width, height, **kwargs):
 
     Args:
         visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
-        width (int): Width of the window. 
-        height (int): Height of window. 
-        scale (int): Camera model scale. Defaults to 1.
-        color (list): Color of the image plane and pyramid lines. Defaults to [0.8, 0.2, 0.8].
+        width (int): Image width. 
+        height (int): Image height. 
+        scale (int, optional): Camera model scale. Defaults to 1.
+        color (list, optional): Color of the image plane and pyramid lines. Defaults to [0.8, 0.2, 0.8].
     """    
 
     assert visualizer is not None 
@@ -146,6 +147,131 @@ def draw_camera(visualizer, width, height, **kwargs):
                                          width, height, scale=scale, color=color)
     for g in geometries:
         visualizer.add_geometry(g)
+
+def move_camera(visualizer, **kwargs):
+    """Move the camera at specific coordinates
+
+    Args:
+        visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
+        pos (list, optional): Targrt position. Defaults to None.
+        disp (list, optional): Displacement. Defaults to None.
+        save_path (str, optional): The save path to the rendered image. Defaults to None.
+        vis_camera (bool, optional): Visualize the camera or not. Defaults to False.
+        width (int, optional): Image width. Defaults to 1920.
+        height (int, optional): Image height. Defaults to 1080.
+    """    
+
+    assert visualizer is not None
+    pos = kwargs.get('pos', None)
+    disp = kwargs.get('disp', None)
+    assert pos is not None or disp is not None
+    save_path = kwargs.get('save_path', None)
+    vis_camera = kwargs.get('vis_camera', False)
+
+    # Get current extrinsic parameters of render camera.
+    ctr = visualizer.get_view_control()
+    params = ctr.convert_to_pinhole_camera_parameters()
+    extrinsic = params.extrinsic.copy()
+
+    # Reset the camera position
+    if pos:
+        extrinsic[:3, 3] = pos
+    elif disp:
+        print(extrinsic)
+        extrinsic[:3, 3] += disp
+        print(extrinsic)
+    params.extrinsic = extrinsic
+    ctr.convert_from_pinhole_camera_parameters(params)
+
+    if vis_camera:
+        width = kwargs.get('width ', 1920)
+        height = kwargs.get('height ', 1080)
+        draw_camera(visualizer, width, height)
+    if save_path:
+        visualizer.poll_events()
+        visualizer.update_renderer()
+        visualizer.capture_screen_image(save_path)
+
+def rotate_camera(visualizer, ref_extrinsic, axis, degree, **kwargs):
+    """Rotate the camera at a specific degree.
+
+    Args:
+        visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
+        ref_extrinsic (ndarray): The reference matrix (extrinsic parameters) for this rotation.
+        axis (str): The axis around which the rotation is performed.
+        degree (float): The degree of rotation.
+        save_path (str, optional): The save path to the rendered image. Defaults to None.
+        vis_camera (bool, optional): Visualize the camera or not. Defaults to False.
+        width (int, optional): Image width. Defaults to 1920.
+        height (int, optional): Image height. Defaults to 1080.
+    """
+
+    assert visualizer is not None
+    assert ref_extrinsic is not None
+    assert axis is not None
+    assert degree is not None
+    save_path = kwargs.get('save_path', None)
+    vis_camera = kwargs.get('vis_camera', False)
+
+    # Get current parameters of render camera.
+    ctr = visualizer.get_view_control()
+    params = ctr.convert_to_pinhole_camera_parameters()
+
+    # Calculate the extrinsic parameters of camera.
+    rot = np.eye(4)
+    rot[:3, :3] = R.from_euler(axis, degree, degrees=True).as_matrix()
+    params.extrinsic = np.dot(rot, ref_extrinsic)
+    ctr.convert_from_pinhole_camera_parameters(params)
+
+    if vis_camera:
+        width = kwargs.get('width ', 1920)
+        height = kwargs.get('height ', 1080)
+        draw_camera(visualizer, width, height)
+    if save_path:
+        visualizer.poll_events()
+        visualizer.update_renderer()
+        visualizer.capture_screen_image(save_path)
+
+def rotate_camera_around_object(visualizer, ref_extrinsic, axis, degree, **kwargs):
+    """Rotate the camera around the object (point cloud) at a specific angle.
+
+    Args:
+        visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
+        ref_extrinsic (ndarray): The reference matrix (extrinsic parameters) for this rotation.
+        axis (str): The axis around which the rotation is performed.
+        degree (float): The degree of rotation.
+        save_path (str, optional): The save path to the rendered image. Defaults to None.
+        vis_camera (bool, optional): Visualize the camera or not. Defaults to False.
+        width (int, optional): Image width. Defaults to 1920.
+        height (int, optional): Image height. Defaults to 1080.
+    """
+
+    assert visualizer is not None
+    assert ref_extrinsic is not None
+    assert axis is not None
+    assert degree is not None
+    save_path = kwargs.get('save_path', None)
+    vis_camera = kwargs.get('vis_camera', False)
+
+    # Get current parameters of render camera.
+    ctr = visualizer.get_view_control()
+    params = ctr.convert_to_pinhole_camera_parameters()
+
+    # Calculate the extrinsic parameters of camera.
+    rot = np.eye(4)
+    rot[:3, :3] = R.from_euler(axis, degree, degrees=True).as_matrix()
+    params.extrinsic = np.dot(ref_extrinsic, rot)
+    ctr.convert_from_pinhole_camera_parameters(params)
+
+    if vis_camera:
+        width = kwargs.get('width ', 1920)
+        height = kwargs.get('height ', 1080)
+        draw_camera(visualizer, width, height)
+    if save_path:
+        visualizer.poll_events()
+        visualizer.update_renderer()
+        visualizer.capture_screen_image(save_path)
+
 
 def get_camera_params(visualizer, shallow_copy=False):
     """Get intrinsic and extrinsic parameters of render camera.
@@ -180,13 +306,14 @@ def _draw_camera_geometries(intrinsic_mat, rotate_mat, trans_mat, width, height,
     """Create axis, plane and pyramid geometries in Open3D format
 
     Args:
-        intrinsic_mat (_type_): The calibration matrix (camera intrinsics)
-        rotate_mat (_type_): The rotation matrix
-        trans_mat (_type_): The translation
-        width (_type_): image width
-        height (_type_): image height
-        scale (int): Camera model scale. Defaults to 1.
-        color (list): Color of the image plane and pyramid lines. Defaults to [0.8, 0.2, 0.8].
+        intrinsic_mat (ndarray): The calibration matrix (camera intrinsics)
+        rotate_mat (ndarray): The rotation matrix
+        trans_mat (ndarray): The translation
+        width (int): image width
+        height (int): image height
+        scale (int, optional): Camera model scale. Defaults to 1.
+        color (list, optional): Color of the image plane and pyramid lines. 
+                                Defaults to [0.8, 0.2, 0.8].
 
     Returns:
         open3d.geometry.TriangleMesh: axis.
@@ -261,14 +388,14 @@ def draw_points3D(points, **kwargs):
 
     Args:
         points (open3d.geometry.Geometry3D): 3D points.
-        color (list): 3D points Color. Defaults to [0.8, 0.2, 0.8].
+        color (list, optional): 3D points Color. Defaults to [0.8, 0.2, 0.8].
         radius (float, optional): 3D points radius. Defaults to 0.01.
-        resolution (int): 3D points resolution. Defaults to 20.
+        resolution (int, optional): 3D points resolution. Defaults to 20.
 
     Returns:
         list: the geometries of 3D points.
     """    
-    
+
     assert points is not None
     color = kwargs.get('color', [0.8, 0.2, 0.8])
     radius = kwargs.get('radius', 0.01)
