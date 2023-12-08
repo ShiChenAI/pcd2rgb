@@ -4,7 +4,7 @@ from os import path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import argparse
 from utils.io import read_pts
-from utils.render import init_visualizer, move_camera
+from utils.render import init_visualizer, move_camera, rotate_camera_around_object, rotate_camera
 
 def get_args():
     parser = argparse.ArgumentParser(description='Demo of open3d camera moving and rotation.')
@@ -36,6 +36,12 @@ def main(args):
                           point_size=point_size,
                           width=width,
                           height=height)
+    
+    # Get original parameters of render camera.
+    ctr = vis.get_view_control()
+    params = ctr.convert_to_pinhole_camera_parameters()
+    ref_extrinsic = params.extrinsic.copy()
+    
     if demo_mode == 0:
         # Place the camera at specific coordinates
         if save_images:
@@ -48,8 +54,28 @@ def main(args):
             disp = [0, 0, 0]
             disp[axis_idxs[axis]] = 1
             save_path = os.path.join(save_dir, '{}.png'.format(i)) if save_images else None
-            move_camera(vis, disp=disp, save_path=save_path, vis_camera=vis_camera, 
+            move_camera(vis, params, disp=disp, save_path=save_path, vis_camera=vis_camera, 
                         width=width, height=height)
+    elif demo_mode == 1:
+        # Rotate a specific angle around an object
+        if save_images:
+            save_dir = os.path.join('data', 'rotate_o_{}'.format(axis)) 
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+        for i in range(0, 360, 30):
+            save_path = os.path.join(save_dir, '{}.png'.format(i)) if save_images else None
+            rotate_camera_around_object(vis, ref_extrinsic, axis, i, save_path=save_path, vis_camera=vis_camera, 
+                                        width=width, height=height)
+    elif demo_mode == 2:
+        # Rotate the camera at a specific angle
+        if save_images:
+            save_dir = os.path.join('data', 'rotate_s_{}'.format(axis)) 
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+        for i in range(0, 360, 30):
+            save_path = os.path.join(save_dir, '{}.png'.format(i)) if save_images else None
+            rotate_camera(vis, ref_extrinsic, axis, i, save_path=save_path, vis_camera=vis_camera, 
+                          width=width, height=height)
             
     # Run the visualizer.
     vis.run()

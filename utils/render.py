@@ -148,11 +148,12 @@ def draw_camera(visualizer, width, height, **kwargs):
     for g in geometries:
         visualizer.add_geometry(g)
 
-def move_camera(visualizer, **kwargs):
+def move_camera(visualizer, params, **kwargs):
     """Move the camera at specific coordinates
 
     Args:
         visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
+        params (open3d.camera.PinholeCameraParameters): The camera parameters.
         pos (list, optional): Targrt position. Defaults to None.
         disp (list, optional): Displacement. Defaults to None.
         save_path (str, optional): The save path to the rendered image. Defaults to None.
@@ -170,16 +171,14 @@ def move_camera(visualizer, **kwargs):
 
     # Get current extrinsic parameters of render camera.
     ctr = visualizer.get_view_control()
-    params = ctr.convert_to_pinhole_camera_parameters()
+    #params = ctr.convert_to_pinhole_camera_parameters()
     extrinsic = params.extrinsic.copy()
 
     # Reset the camera position
     if pos:
         extrinsic[:3, 3] = pos
     elif disp:
-        print(extrinsic)
         extrinsic[:3, 3] += disp
-        print(extrinsic)
     params.extrinsic = extrinsic
     ctr.convert_from_pinhole_camera_parameters(params)
 
