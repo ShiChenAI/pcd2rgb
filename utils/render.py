@@ -69,8 +69,16 @@ def init_visualizer(**kwargs):
     height = kwargs.get('height ', 1080)
     left = kwargs.get('left ', 50)
     top = kwargs.get('top ', 50)
+    mode = kwargs.get('mode', 'default')
 
-    vis = o3d.visualization.Visualizer()
+    if mode == 'select':
+        vis = o3d.visualization.VisualizerWithVertexSelection()
+    elif mode == 'edit':
+        vis = o3d.visualization.VisualizerWithEditing()
+    elif mode == 'key':
+        vis = o3d.visualization.VisualizerWithKeyCallback()
+    else:
+        vis = o3d.visualization.Visualizer()
     vis.create_window(window_name=window_name,
                       width=width,
                       height=height,
@@ -85,6 +93,23 @@ def init_visualizer(**kwargs):
         vis.add_geometry(point_cloud_data)
 
     return vis
+
+def get_picked_pts(visualizer):
+    """Get picked points from the visualizer.
+
+    Args:
+        visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
+
+    Returns:
+        ndarray: picked points.
+    """    
+
+    ori_picked_pts = visualizer.get_picked_points()
+    picked_pts = np.zeros((len(ori_picked_pts), 3))
+    for i in range(len(ori_picked_pts)):
+        picked_pts[i] = np.asarray(ori_picked_pts[i].coord)
+        
+    return picked_pts
 
 def downsample_voxel(point_cloud_data, **kwargs):
     """Voxel downsampling.
