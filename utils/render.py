@@ -4,6 +4,7 @@ import os
 import random
 import copy
 from scipy.spatial.transform import Rotation as R # scipy >= 1.4.0
+from utils.io import read_pts
 
 def render_with_object_rotation(point_cloud_data, visualizer, **kwargs):
     """Rotate the point cloud and render.
@@ -94,22 +95,104 @@ def init_visualizer(**kwargs):
 
     return vis
 
-def get_picked_pts(visualizer):
+def get_picked_pts(visualizer, mode):
     """Get picked points from the visualizer.
 
     Args:
         visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
-
+        mode (string): The visualization mode.
     Returns:
         ndarray: picked points.
     """    
 
+    assert mode == 'select'
     ori_picked_pts = visualizer.get_picked_points()
     picked_pts = np.zeros((len(ori_picked_pts), 3))
     for i in range(len(ori_picked_pts)):
         picked_pts[i] = np.asarray(ori_picked_pts[i].coord)
-        
+
     return picked_pts
+
+def get_cropped_geometry(visualizer, mode, convert_to_np=False):
+    """Get cropped geometry from the visualizer.
+
+    Args:
+        visualizer (o3d.visualization.Visualizer): The point cloud visualizer.
+        mode (string): The visualization mode.
+        convert_to_np (bool, optional): Convert to numpy or not. Defaults to False.
+
+    Returns:
+        o3d.open3d.geometry: The cropped geometry.
+    """    
+
+    assert mode == 'edit'
+    cropped_geometry = visualizer.get_cropped_geometry()
+    return (np.asarray(cropped_geometry.points), np.asarray(cropped_geometry.colors)) if convert_to_np else cropped_geometry
+
+def pick_geometry_to_imgs(filepath, data_format, **kwargs):
+    """Pick geometry and convert imgages.
+
+    Args:
+        filepath (str): The point cloud data file (*.pts).
+        data_format (str, optional): The data format of the pts file ('xyzirgb' or 'xyzrgb'). 
+                                     Defaults to 'xyzirgb'.
+        point_size (int, optional): The visulized size of each point. Defaults to 1.
+        width (int, optional): Width of the window. Defaults to 1920.
+        height (int, optional): Height of window. Defaults to 1080.
+        axis (str): The axis around which the rotation is performed.
+        save_dir (str, optional): The save directory for rendered images. Defaults to None.
+        rotate_angles (list): The rotate angles of camera.
+
+    """    
+    point_size = kwargs.get('point_size', 1)
+    width = kwargs.get('width ', 1920)
+    height = kwargs.get('height ', 1080)
+    save_dir = kwargs.get('save_dir', None)
+    axis = kwargs.get('axis', 'y')
+    rotate_angles = kwargs.get('rotate_angles', [])
+
+    # Read point cloud data from file.
+    pcd = read_pts(filepath, data_format=data_format)
+
+    # Initialize the point cloud data visualizer.
+    vis = init_visualizer(point_cloud_data=pcd, 
+                          window_name='Pick the geometry of object:', 
+                          point_size=point_size,
+                          width=width,
+                          height=height, 
+                          mode='edit')
+    
+    # Run the visualizer.
+    vis.run()
+
+    cropped_geometry = get_cropped_geometry(vis, 'edit')
+
+    # Destroy the visualization window
+    vis.destroy_window()
+    vis = None
+
+    vis = init_visualizer(point_cloud_data=cropped_geometry, 
+                          window_name='Picked geometry', 
+                          point_size=10,
+                          width=width,
+                          height=height, 
+                          mode='default')
+    
+    ctr = vis.get_view_control()
+    params = ctr.convert_to_pinhole_camera_parameters()
+    ref_extrinsic = params.extrinsic.copy()
+    
+    if save_dir and not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    for i in rotate_angles:
+        save_path = os.path.join(save_dir, '{}.png'.format(i)) if save_dir else None
+        rotate_camera_around_object(vis, ref_extrinsic, axis, i, 
+                                    save_path=save_path, vis_camera=False, 
+                                    width=width, height=height)
+    # Run the visualizer.
+    vis.run()
+    vis.destroy_window()
+
 
 def downsample_voxel(point_cloud_data, **kwargs):
     """Voxel downsampling.

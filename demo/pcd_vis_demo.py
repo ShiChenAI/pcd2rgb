@@ -3,7 +3,7 @@ from os import path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import argparse
 from utils.io import read_pts
-from utils.render import init_visualizer, draw_camera, get_picked_pts
+from utils.render import init_visualizer, draw_camera, get_picked_pts, get_cropped_geometry
 
 def get_args():
     parser = argparse.ArgumentParser(description='Visualize the point cloud file.')
@@ -41,9 +41,11 @@ def main(args):
     vis.run()
 
     if mode == 'select':
-        sel_pts = get_picked_pts(vis)
+        sel_pts = get_picked_pts(vis, mode)
         print(sel_pts.shape)
         print(sel_pts[3])
+    elif mode == 'edit':
+        get_cropped_geometry(vis, mode)
     
     # Destroy the visualization window
     vis.destroy_window()
